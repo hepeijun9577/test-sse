@@ -1,0 +1,17 @@
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f0f2f5;
+}
+
+.app-main {
+  flex: 1;
+  overflow: hidden;
+  padding: 16px;
+  background: #f0f2f5;
+}
+
+.el-main.app-main {
+  overflow: hidden;
+}
