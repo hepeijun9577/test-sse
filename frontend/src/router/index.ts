@@ -17,6 +17,11 @@ const router = createRouter({
       name: "sse-md",
       component: () => import("../views/sse-md/index.vue"),
     },
+    {
+      path: "/agent",
+      name: "agent",
+      component: () => import("../views/agent/index.vue"),
+    },
   ],
 });
 

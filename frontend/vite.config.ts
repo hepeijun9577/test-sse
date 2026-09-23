@@ -35,6 +35,9 @@ function elementPlusResolver() {
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    port: 8111,
+  },
   plugins: [
     vue(),
     AutoImport({

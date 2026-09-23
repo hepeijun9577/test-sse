@@ -22,4 +22,50 @@ describe('AppController (e2e)', () => {
       .expect(200)
       .expect('Hello World!');
   });
+
+  it('POST /chat/stream should keep the text SSE contract', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/chat/stream')
+      .send({ message: '你好' })
+      .expect(200)
+      .expect('Content-Type', /text\/event-stream/);
+
+    expect(response.text).toContain('"type":"start"');
+    expect(response.text).toContain('"type":"chunk"');
+    expect(response.text).toContain('"type":"done"');
+  }, 10000);
+
+  it('POST /chat-md/stream should keep the markdown SSE contract', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/chat-md/stream')
+      .send({ message: '表格' })
+      .expect(200)
+      .expect('Content-Type', /text\/event-stream/);
+
+    expect(response.text).toContain('"type":"start"');
+    expect(response.text).toContain('"type":"chunk"');
+    expect(response.text).toContain('"type":"done"');
+  }, 10000);
+
+  it('POST /agent/chat/stream should expose an isolated SSE endpoint', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/agent/chat/stream')
+      .send({ message: '你好' })
+      .expect(200)
+      .expect('Content-Type', /text\/event-stream/);
+
+    expect(response.text).toContain('"type":"agent_started"');
+    expect(response.text).toContain('"type":"agent_error"');
+    expect(response.text).toContain('DEEPSEEK_API_KEY 未配置');
+  });
+
+  it('POST /agent/chat/stream should reject an empty message', () => {
+    return request(app.getHttpServer())
+      .post('/agent/chat/stream')
+      .send({ message: '  ' })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toBe('message 必须是非空字符串');
+      });
+  });
 });

@@ -1,10 +1,16 @@
+import { existsSync } from 'node:fs';
+import { loadEnvFile } from 'node:process';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  if (existsSync('.env.local')) {
+    loadEnvFile('.env.local');
+  }
+
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: 'http://localhost:5173',
+    origin: 'http://localhost:8111',
     methods: ['GET', 'POST'],
     credentials: true,
   });
