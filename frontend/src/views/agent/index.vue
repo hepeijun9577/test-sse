@@ -43,6 +43,9 @@
           resize="none"
           placeholder="告诉 Agent 你想完成什么..."
           aria-label="Agent message" />
+        <el-button v-if="isLoading" type="warning" native-type="button" :loading="isCancelling" @click="cancelMessage">
+          {{ isCancelling ? "取消中" : "取消任务" }}
+        </el-button>
         <el-button type="primary" native-type="submit" :loading="isLoading" :disabled="!inputText.trim() || isLoading">
           {{ isLoading ? "处理中" : "发送给 Agent" }}
         </el-button>
@@ -64,12 +67,17 @@ interface Message {
 const messages = ref<Message[]>([]);
 const inputText = ref("");
 const isLoading = ref(false);
-const status = ref<"idle" | "running" | "complete" | "error">("idle");
+const isCancelling = ref(false);
+const status = ref<"idle" | "running" | "complete" | "cancelled" | "error">("idle");
 const messageListRef = ref<HTMLElement>();
+const taskId = ref<string>();
+const activeRequestController = ref<AbortController>();
+const activeAgentMessage = ref<Message>();
 
 const statusText = computed(() => {
   if (status.value === "running") return "执行中";
   if (status.value === "complete") return "已完成";
+  if (status.value === "cancelled") return "已取消";
   if (status.value === "error") return "需要配置 API Key";
   return "等待输入";
 });
@@ -77,6 +85,7 @@ const statusText = computed(() => {
 const statusType = computed(() => {
   if (status.value === "error") return "danger";
   if (status.value === "complete") return "success";
+  if (status.value === "cancelled") return "warning";
   return "info";
 });
 
@@ -93,8 +102,12 @@ async function sendMessage() {
   inputText.value = "";
   isLoading.value = true;
   status.value = "running";
+  taskId.value = undefined;
   messages.value.push({ role: "user", content: text });
   const agentMessage = reactive<Message>({ role: "assistant", content: "", streaming: true, activities: [] });
+  activeAgentMessage.value = agentMessage;
+  const requestController = new AbortController();
+  activeRequestController.value = requestController;
   messages.value.push(agentMessage);
   scrollToBottom();
 
@@ -103,6 +116,7 @@ async function sendMessage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: text }),
+      signal: requestController.signal,
     });
 
     if (!response.ok || !response.body) throw new Error("Agent 请求失败");
@@ -124,12 +138,25 @@ async function sendMessage() {
         const data = line.slice(6).trim();
         if (!data) continue;
 
-        const event = JSON.parse(data) as { type: string; content?: string; message?: string };
+        const event = JSON.parse(data) as {
+          type: string;
+          taskId?: string;
+          content?: string;
+          message?: string;
+          tool?: string;
+          step?: number;
+        };
+        if (event.type === "agent_started" && event.taskId) taskId.value = event.taskId;
         if (event.type === "message_delta") agentMessage.content += event.content ?? "";
         if (event.type === "tool_started")
-          agentMessage.activities?.push(`调用工具：${(event as { tool?: string }).tool ?? "未知工具"}`);
-        if (event.type === "tool_result") agentMessage.activities?.push("工具执行完成，正在生成回答");
+          agentMessage.activities?.push(`Step ${event.step ?? "?"} · 调用工具：${event.tool ?? "未知工具"}`);
+        if (event.type === "tool_result")
+          agentMessage.activities?.push(`Step ${event.step ?? "?"} · 工具执行完成，正在生成回答`);
         if (event.type === "tool_error") agentMessage.activities?.push(`工具失败：${event.message ?? "未知错误"}`);
+        if (event.type === "agent_cancelled") {
+          agentMessage.content = event.message ?? "Agent 任务已取消";
+          status.value = "cancelled";
+        }
         if (event.type === "agent_error") {
           agentMessage.content = event.message ?? "Agent 请求失败";
           status.value = "error";
@@ -139,13 +166,37 @@ async function sendMessage() {
       }
     }
   } catch {
+    if (requestController.signal.aborted || status.value === "cancelled") return;
     agentMessage.content = "无法连接 Agent 服务，请确认后端已启动。";
     status.value = "error";
     ElMessage.error("Agent 请求失败");
   } finally {
     agentMessage.streaming = false;
     isLoading.value = false;
+    activeRequestController.value = undefined;
+    activeAgentMessage.value = undefined;
+    isCancelling.value = false;
     scrollToBottom();
+  }
+}
+
+async function cancelMessage() {
+  const currentTaskId = taskId.value;
+  if (!currentTaskId || !isLoading.value || isCancelling.value) return;
+
+  isCancelling.value = true;
+  try {
+    await fetch(`http://localhost:3000/agent/tasks/${currentTaskId}/cancel`, {
+      method: "POST",
+    });
+  } catch {
+    ElMessage.error("取消请求失败，连接可能已经断开");
+  } finally {
+    status.value = "cancelled";
+    if (activeAgentMessage.value && !activeAgentMessage.value.content) {
+      activeAgentMessage.value.content = "Agent 任务已取消";
+    }
+    activeRequestController.value?.abort();
   }
 }
 </script>
