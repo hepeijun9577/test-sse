@@ -2,7 +2,19 @@ import type { Response } from 'express';
 import { AgentService } from './agent.service';
 import type { ChatCompletion, DeepSeekProvider } from './llm/deepseek.provider';
 import { CalculatorTool } from './tools/calculator.tool';
+import { KnowledgeSearchTool } from './tools/knowledge-search.tool';
+import { TimeTool } from './tools/time.tool';
 import { ToolRegistry } from './tools/tool.registry';
+import { WeatherTool } from './tools/weather.tool';
+
+function createToolRegistry() {
+  return new ToolRegistry(
+    new CalculatorTool(),
+    new TimeTool(),
+    new KnowledgeSearchTool(),
+    new WeatherTool(),
+  );
+}
 
 describe('AgentService tool calling', () => {
   it('executes calculator and sends its result back to the model', async () => {
@@ -47,10 +59,7 @@ describe('AgentService tool calling', () => {
         return completions.shift() as ChatCompletion;
       },
     } as unknown as DeepSeekProvider;
-    const service = new AgentService(
-      provider,
-      new ToolRegistry(new CalculatorTool()),
-    );
+    const service = new AgentService(provider, createToolRegistry());
     const events: string[] = [];
     const response = {
       writableEnded: false,
@@ -113,10 +122,7 @@ describe('AgentService tool calling', () => {
     const provider = {
       completeChat: jest.fn(async () => repeatedCompletion),
     } as unknown as DeepSeekProvider;
-    const service = new AgentService(
-      provider,
-      new ToolRegistry(new CalculatorTool()),
-    );
+    const service = new AgentService(provider, createToolRegistry());
     const events: string[] = [];
     const response = {
       writableEnded: false,
@@ -149,10 +155,7 @@ describe('AgentService tool calling', () => {
           }),
       ),
     } as unknown as DeepSeekProvider;
-    const service = new AgentService(
-      provider,
-      new ToolRegistry(new CalculatorTool()),
-    );
+    const service = new AgentService(provider, createToolRegistry());
     const events: string[] = [];
     const response = {
       writableEnded: false,
@@ -187,10 +190,7 @@ describe('AgentService tool calling', () => {
           }),
       ),
     } as unknown as DeepSeekProvider;
-    const service = new AgentService(
-      provider,
-      new ToolRegistry(new CalculatorTool()),
-    );
+    const service = new AgentService(provider, createToolRegistry());
     const events: string[] = [];
     const response = {
       writableEnded: false,

@@ -138,7 +138,13 @@ export class AgentService {
           if (task.steps.length >= task.maxSteps) {
             throw new Error(`超过最大执行步数（${task.maxSteps}）`);
           }
-          await this.executeTool(task, toolCall, messages, send);
+          await this.executeTool(
+            task,
+            toolCall,
+            messages,
+            send,
+            abortController.signal,
+          );
         }
       }
 
@@ -241,6 +247,7 @@ export class AgentService {
     toolCall: ToolCall,
     messages: ChatMessage[],
     send: (event: Record<string, unknown>) => void,
+    signal: AbortSignal,
   ) {
     const toolName = toolCall.function.name;
     const toolStep = this.startStep(
@@ -265,7 +272,7 @@ export class AgentService {
     try {
       const input = JSON.parse(toolCall.function.arguments) as unknown;
       toolStep.input = { callId: toolCall.id, value: input };
-      const result = await this.toolRegistry.execute(toolName, input);
+      const result = await this.toolRegistry.execute(toolName, input, signal);
       toolStep.result = result;
       this.completeStep(toolStep);
       messages.push({

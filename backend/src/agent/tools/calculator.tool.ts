@@ -11,7 +11,7 @@ export interface AgentTool {
       parameters: Record<string, unknown>;
     };
   };
-  execute(input: unknown): Promise<unknown>;
+  execute(input: unknown, signal?: AbortSignal): Promise<unknown>;
 }
 
 class CalculatorParser {
@@ -114,6 +114,7 @@ export class CalculatorTool implements AgentTool {
 
   async execute(
     input: unknown,
+    _signal?: AbortSignal,
   ): Promise<{ expression: string; result: number }> {
     if (!input || typeof input !== 'object' || !('expression' in input)) {
       throw new Error('calculator 参数必须包含 expression');
